@@ -23,7 +23,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::135330967620:role/S3PasswordTest
-          aws-region: ap-south-1
+          aws-region: us-east-1
 
       # 3. Install only required dependency
       - name: Install dependencies
@@ -42,7 +42,7 @@ jobs:
         run: |
           CONFIG=$(cat config.json)
 
-          SECRET_ARN=$(echo $CONFIG | jq -r '.passwordSecretArn')
+          SECRET_ARN=$(echo $CONFIG | jq -r '.tenants.TEST.db.password')
 
           DB_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id "$SECRET_ARN" \
