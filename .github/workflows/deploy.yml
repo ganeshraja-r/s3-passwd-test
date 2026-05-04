@@ -37,12 +37,31 @@ jobs:
           aws s3 cp s3://s3-config-pwd-test/config.json config.json
           echo "✅ Config downloaded from S3"
 
-      # 🔥 NEW STEP (CONFIRMATION ONLY - ADDED)
-      - name: Confirm secret source
+      # 🔥 REAL VALIDATION STEP (NEW)
+      - name: Verify secret source (real validation)
         run: |
-          echo "🔐 Password will be fetched ONLY from AWS Secrets Manager"
-          echo "📌 No password is stored in config.json"
-          echo "✔ Source validation complete before secret retrieval"
+          set -e
+
+          CONFIG=$(cat config.json)
+
+          SECRET_ARN=$(echo $CONFIG | jq -r '.tenants.TEST.db.password')
+
+          echo "🔍 Validating secret source..."
+
+          # 1. Ensure config does NOT contain raw password
+          if [[ "$SECRET_ARN" != arn:* ]]; then
+            echo "❌ ERROR: Invalid secret reference in config.json"
+            exit 1
+          fi
+
+          # 2. Validate secret exists in AWS Secrets Manager
+          aws secretsmanager describe-secret \
+            --secret-id "$SECRET_ARN" \
+            --region us-east-1 > /dev/null
+
+          echo "✅ Secret exists in AWS Secrets Manager"
+          echo "📌 Verified: Password is NOT stored in config.json"
+          echo "📌 Verified: Password is sourced ONLY from AWS Secrets Manager"
 
       # 5. Fetch secret from AWS Secrets Manager and run app
       - name: Fetch secret and run app
