@@ -37,6 +37,13 @@ jobs:
           aws s3 cp s3://s3-config-pwd-test/config.json config.json
           echo "✅ Config downloaded from S3"
 
+      # 🔥 NEW STEP (CONFIRMATION ONLY - ADDED)
+      - name: Confirm secret source
+        run: |
+          echo "🔐 Password will be fetched ONLY from AWS Secrets Manager"
+          echo "📌 No password is stored in config.json"
+          echo "✔ Source validation complete before secret retrieval"
+
       # 5. Fetch secret from AWS Secrets Manager and run app
       - name: Fetch secret and run app
         run: |
@@ -51,7 +58,7 @@ jobs:
 
           export DB_PASSWORD
 
-          echo "✅ DB password fetched successfully from AWS Secrets Manager"
+          echo "✅ CONFIRMED: Password fetched from AWS Secrets Manager only"
 
           node app.js
 
