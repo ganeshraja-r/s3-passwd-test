@@ -1,0 +1,53 @@
+name: Load Config and Run App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  run-app:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::135330967620:role/S3PasswordTest
+          aws-region: ap-south-1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq awscli
+
+      - name: Download config from S3
+        run: |
+          aws s3 cp s3://s3-config-pwd-test/config.json config.json
+          echo "✅ Config downloaded from S3"
+
+      - name: Fetch secret and run app
+        run: |
+          CONFIG=$(cat config.json)
+
+          SECRET_ARN=$(echo $CONFIG | jq -r '.passwordSecretArn')
+
+          DB_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id "$SECRET_ARN" \
+            --query SecretString \
+            --output text)
+
+          export DB_PASSWORD
+
+          echo "DB password fetched successfully"
+
+          node app.js
+
+          echo "✅ Done: App executed with secret from AWS"
