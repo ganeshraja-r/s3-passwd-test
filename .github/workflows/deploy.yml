@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   run-app:
     runs-on: ubuntu-latest
@@ -16,45 +19,51 @@ jobs:
     steps:
       # 1. Checkout repository
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. Configure AWS credentials using OIDC
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::135330967620:role/S3PasswordTest
           aws-region: us-east-1
 
-      # 3. Install only required dependency
+      # 3. Setup Node.js (explicit, so runner changes don’t break you later)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      # 4. Install required dependencies (jq only)
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
 
-      # 4. Download config file from S3
+      # 5. Download config file from S3
       - name: Download config from S3
         run: |
           aws s3 cp s3://s3-config-pwd-test/config.json config.json
           echo "✅ Config downloaded from S3"
 
-      # 🔥 REAL VALIDATION STEP (NEW)
+      # 6. Validate secret reference
       - name: Verify secret source (real validation)
         run: |
           set -e
 
           CONFIG=$(cat config.json)
-
-          SECRET_ARN=$(echo $CONFIG | jq -r '.tenants.TEST.db.password')
+          SECRET_ARN=$(echo "$CONFIG" | jq -r '.tenants.TEST.db.password')
 
           echo "🔍 Validating secret source..."
 
-          # 1. Ensure config does NOT contain raw password
+          # Ensure config does NOT contain raw password
           if [[ "$SECRET_ARN" != arn:* ]]; then
             echo "❌ ERROR: Invalid secret reference in config.json"
             exit 1
           fi
 
-          # 2. Validate secret exists in AWS Secrets Manager
+          # Validate secret exists
           aws secretsmanager describe-secret \
             --secret-id "$SECRET_ARN" \
             --region us-east-1 > /dev/null
@@ -63,12 +72,13 @@ jobs:
           echo "📌 Verified: Password is NOT stored in config.json"
           echo "📌 Verified: Password is sourced ONLY from AWS Secrets Manager"
 
-      # 5. Fetch secret from AWS Secrets Manager and run app
+      # 7. Fetch secret and run app
       - name: Fetch secret and run app
         run: |
-          CONFIG=$(cat config.json)
+          set -e
 
-          SECRET_ARN=$(echo $CONFIG | jq -r '.tenants.TEST.db.password')
+          CONFIG=$(cat config.json)
+          SECRET_ARN=$(echo "$CONFIG" | jq -r '.tenants.TEST.db.password')
 
           DB_PASSWORD=$(aws secretsmanager get-secret-value \
             --secret-id "$SECRET_ARN" \
