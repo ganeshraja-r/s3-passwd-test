@@ -5,8 +5,8 @@ import sys
 bucket_name = "s3-config-pwd-test"
 file_key = "config.json"
 
-s3 = boto3.client("s3")
-secrets = boto3.client("secretsmanager")
+s3 = boto3.client("s3", region_name="us-east-1")
+secrets = boto3.client("secretsmanager", region_name="us-east-1")
 
 try:
     # STEP 1: Fetch config
@@ -20,7 +20,7 @@ try:
 
     # STEP 3: Fetch secret
     secret_response = secrets.get_secret_value(SecretId=password_arn)
-    real_password = secret_response["SecretString"]
+    real_password = json.loads(secret_response["SecretString"])["password"]
 
     # ✅ REQUIRED MESSAGE
     print("✅ Password successfully fetched from Secrets Manager")
